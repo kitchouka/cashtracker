@@ -76,16 +76,16 @@ function guessCategoryId(label) {
 
 // ── CSV bank format detection & parsing ─────────────────────────────────────
 function detectBankFormat(rawText) {
-  const first1000 = rawText.slice(0, 1000).toLowerCase()
-    .replace(/é/g,'e').replace(/è/g,'e').replace(/ê/g,'e');
-  if (first1000.includes('dateop') || first1000.includes('dateval')) return 'boursorama';
-  // Caisse d'Épargne vertical: each field on its own line
-  if (first1000.includes('libelle simplifie') ||
-      first1000.includes('informations complementaires') ||
-      first1000.includes('pointage operation')) return 'caisse-epargne-vertical';
-  // Caisse d'Épargne classic CSV
-  if (first1000.includes('debit euros') || first1000.includes('libelle')) return 'caisse-epargne-csv';
-  if (first1000.includes('amount')) return 'boursorama';
+  const firstLine = rawText.split(/\r?\n/)[0] || '';
+  const norm = firstLine.toLowerCase().replace(/[éèê]/g,'e');
+  // Boursorama: colonnes dateOp/dateVal
+  if (norm.includes('dateop') || norm.includes('dateval')) return 'boursorama';
+  // Caisse d'Épargne CSV : première ligne avec ";" et colonnes libelle/debit
+  if (firstLine.includes(';') && (norm.includes('libelle') || norm.includes('debit'))) return 'caisse-epargne-csv';
+  // Caisse d'Épargne vertical : premier champ seul sur sa ligne
+  const normFull = rawText.slice(0, 1000).toLowerCase().replace(/[éèê]/g,'e');
+  if (normFull.includes('libelle simplifie') || normFull.includes('pointage operation')) return 'caisse-epargne-vertical';
+  if (normFull.includes('amount')) return 'boursorama';
   return null;
 }
 
@@ -187,18 +187,19 @@ function parseBankCSV(rawText) {
       });
     }
   } else {
-    // Caisse d'Épargne: Date ; Libellé ; Débit euros ; Crédit euros
-    const idxDate   = headers.findIndex(h => h.includes('date'));
-    const idxLabel  = headers.findIndex(h => h.includes('libellé') || h.includes('libelle'));
-    const idxDebit  = headers.findIndex(h => h.includes('débit') || h.includes('debit'));
+    // Caisse d'Épargne CSV: Date;Libelle simplifie;...;Debit;Credit;...
+    // Débit = valeur négative (ex: -15,50), on prend la colonne "debit"
+    const idxDate  = headers.findIndex(h => h === 'date de comptabilisation' || h.startsWith('date'));
+    const idxLabel = headers.findIndex(h => h === 'libelle simplifie' || h.includes('libelle'));
+    const idxDebit = headers.findIndex(h => h === 'debit');
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i]);
+      const cols = parseCSVLine(lines[i], ';');
       if (cols.length < 3) continue;
 
       const rawDebit = (cols[idxDebit] || '').replace(/['" ]/g, '').replace(',', '.');
       const amount   = parseFloat(rawDebit);
-      if (isNaN(amount) || amount <= 0) continue; // skip credits / empty
+      if (isNaN(amount) || amount >= 0) continue; // garder seulement les débits (négatifs)
 
       const dateRaw = (cols[idxDate] || '').replace(/['"]/g, '').trim();
       const label   = (cols[idxLabel] || '').replace(/['"]/g, '').trim();
@@ -206,7 +207,7 @@ function parseBankCSV(rawText) {
       rows.push({
         date:        normalizeDate(dateRaw),
         label,
-        amount,
+        amount:      Math.abs(amount),
         category_id: guessCategoryId(label),
       });
     }
