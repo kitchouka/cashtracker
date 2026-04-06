@@ -463,13 +463,19 @@ function initImport() {
 
 async function analyzeCSV() {
   const file = document.getElementById('importFile').files[0];
-  if (!file) { alert('Sélectionne un fichier CSV.'); return; }
+  if (!file) { alert('Sélectionne un fichier CSV ou PDF.'); return; }
 
   const form = new FormData();
   form.append('file', file);
 
-  const res = await api('POST', '/api/import/csv', form);
-  if (res.error) { alert('Erreur : ' + res.error); return; }
+  const isPDF = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+  const endpoint = isPDF ? '/api/import/pdf' : '/api/import/csv';
+
+  const res = await api('POST', endpoint, form);
+  if (res.error) {
+    alert('Erreur : ' + res.error + (res.text_preview ? '\n\nAperçu du texte extrait :\n' + res.text_preview : ''));
+    return;
+  }
 
   // Format badge
   const badge = document.getElementById('formatBadge');

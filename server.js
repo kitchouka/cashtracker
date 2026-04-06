@@ -4,6 +4,7 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 const fetch   = require('node-fetch');
+const pdfParse = require('pdf-parse');
 const db      = require('./db');
 
 const app  = express();
@@ -306,6 +307,68 @@ app.post('/api/ocr', uploadReceipt.single('receipt'), async (req, res) => {
   }
 });
 
+// ── PDF bank statement parser (Caisse d'Épargne) ─────────────────────────────
+function parseCaisseEpargnePDF(text) {
+  const rows = [];
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Caisse d'Épargne PDF format: lines like "DD/MM/YYYY  LIBELLÉ  -XX,XX" or "DD/MM/YYYY  LIBELLÉ  XX,XX"
+  // We look for lines starting with a date pattern
+  const dateLineRe = /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([-−]?\d[\d\s]*[,.]?\d{0,2})\s*€?\s*$/;
+  // Simpler fallback: date + anything + amount at end
+  const dateRe = /^(\d{2}\/\d{2}\/\d{4})/;
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const dateMatch = line.match(dateRe);
+    if (dateMatch) {
+      // Try to find amount — might be on same line or next
+      const fullMatch = line.match(dateLineRe);
+      if (fullMatch) {
+        const [, dateStr, label, amountStr] = fullMatch;
+        const amount = parseFloat(amountStr.replace(/\s/g, '').replace(',', '.').replace('−', '-'));
+        if (!isNaN(amount) && amount < 0) {
+          const [d, m, y] = dateStr.split('/');
+          rows.push({
+            date: `${y}-${m}-${d}`,
+            label: label.trim(),
+            amount: Math.abs(amount),
+            category_id: guessCategoryId(label),
+          });
+        }
+      } else {
+        // Multi-line: date on this line, label continues, amount maybe on next line
+        const datePart = dateMatch[1];
+        let rest = line.slice(datePart.length).trim();
+        // Check next lines for continuation until we find an amount
+        let j = i + 1;
+        while (j < lines.length && !lines[j].match(dateRe)) {
+          const amountMatch = lines[j].match(/^([-−]?\d[\d\s]*[,.]\d{2})\s*€?\s*$/);
+          if (amountMatch) {
+            const amount = parseFloat(amountMatch[1].replace(/\s/g, '').replace(',', '.').replace('−', '-'));
+            if (!isNaN(amount) && amount < 0) {
+              const [d, m, y] = datePart.split('/');
+              rows.push({
+                date: `${y}-${m}-${d}`,
+                label: rest.trim(),
+                amount: Math.abs(amount),
+                category_id: guessCategoryId(rest),
+              });
+            }
+            i = j;
+            break;
+          }
+          rest += ' ' + lines[j];
+          j++;
+        }
+      }
+    }
+    i++;
+  }
+  return rows;
+}
+
 // ── Import CSV ───────────────────────────────────────────────────────────────
 app.post('/api/import/csv', uploadCSV.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -345,6 +408,26 @@ app.post('/api/import/csv/confirm', (req, res) => {
     res.json({ ok: true, inserted: expenses.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Import PDF (Caisse d'Épargne) ─────────────────────────────────────────────
+const uploadPDF = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+app.post('/api/import/pdf', uploadPDF.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const data = await pdfParse(req.file.buffer);
+    const rows = parseCaisseEpargnePDF(data.text);
+    if (rows.length === 0) {
+      return res.status(422).json({
+        error: 'Aucune dépense détectée dans ce PDF. Vérifiez qu\'il s\'agit bien d\'un relevé Caisse d\'Épargne.',
+        text_preview: data.text.slice(0, 500)
+      });
+    }
+    res.json({ format: 'caisse_epargne_pdf', formatLabel: 'Format Caisse d\'Épargne (PDF) détecté ✓', rows, count: rows.length });
+  } catch (e) {
+    res.status(500).json({ error: 'Erreur lecture PDF : ' + e.message });
   }
 });
 

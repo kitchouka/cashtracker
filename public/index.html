@@ -121,7 +121,7 @@
     <!-- ══════════════════ IMPORT ══════════════════ -->
     <section id="tab-import" class="tab-section hidden p-4 max-w-3xl mx-auto">
       <div class="bg-gray-900 rounded-2xl border border-gray-800 p-5 mb-4">
-        <h3 class="font-semibold mb-2">Import relevé bancaire CSV</h3>
+        <h3 class="font-semibold mb-2">Import relevé bancaire</h3>
         <p class="text-sm text-gray-400 mb-1">Formats supportés :</p>
         <ul class="text-sm text-gray-400 list-disc list-inside mb-4 space-y-1">
           <li><strong class="text-gray-200">Caisse d'Épargne</strong> — colonnes : Date ; Libellé ; Débit euros ; Crédit euros</li>
@@ -142,8 +142,8 @@
           </div>
         </div>
 
-        <label class="label">Fichier CSV</label>
-        <input id="importFile" type="file" accept=".csv,.txt"
+        <label class="label">Fichier CSV ou PDF</label>
+        <input id="importFile" type="file" accept=".csv,.txt,.pdf"
           class="block w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-700 file:text-white hover:file:bg-indigo-600 cursor-pointer mb-4" />
 
         <button id="analyzeBtn"
