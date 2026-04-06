@@ -75,14 +75,55 @@ function guessCategoryId(label) {
 }
 
 // ── CSV bank format detection & parsing ─────────────────────────────────────
-function detectBankFormat(headerLine) {
-  const lower = headerLine.toLowerCase();
-  if (lower.includes('dateop') || lower.includes('dateval')) return 'boursorama';
-  if (lower.includes('débit euros') || lower.includes('debit euros') ||
-      lower.includes('libellé') || lower.includes('libelle')) return 'caisse-epargne';
-  // Fallback heuristic: Boursorama has "amount" column
-  if (lower.includes('amount')) return 'boursorama';
-  return 'caisse-epargne';
+function detectBankFormat(rawText) {
+  const first1000 = rawText.slice(0, 1000).toLowerCase()
+    .replace(/é/g,'e').replace(/è/g,'e').replace(/ê/g,'e');
+  if (first1000.includes('dateop') || first1000.includes('dateval')) return 'boursorama';
+  // Caisse d'Épargne vertical: each field on its own line
+  if (first1000.includes('libelle simplifie') ||
+      first1000.includes('informations complementaires') ||
+      first1000.includes('pointage operation')) return 'caisse-epargne-vertical';
+  // Caisse d'Épargne classic CSV
+  if (first1000.includes('debit euros') || first1000.includes('libelle')) return 'caisse-epargne-csv';
+  if (first1000.includes('amount')) return 'boursorama';
+  return null;
+}
+
+// Parse Caisse d'Épargne vertical format (1 champ par ligne, 13 champs par transaction)
+function parseCaisseEpargneVertical(rawText) {
+  const BLOCK_SIZE = 13; // champs par transaction
+  const lines = rawText.split(/\r?\n/).map(l => l.trim());
+  const rows = [];
+
+  // Trouver le début du bloc d'en-tête
+  let startIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const normalized = lines[i].toLowerCase().replace(/[éèê]/g, 'e');
+    if (normalized === 'date de comptabilisation') { startIdx = i; break; }
+  }
+  if (startIdx === -1) return [];
+
+  // Sauter le bloc d'en-tête, lire les transactions
+  let i = startIdx + BLOCK_SIZE;
+  while (i + BLOCK_SIZE <= lines.length) {
+    const block = lines.slice(i, i + BLOCK_SIZE);
+    // block[0] = date comptabilisation, block[1] = libellé simplifié, block[8] = débit, block[9] = crédit
+    const dateStr   = block[0];
+    const label     = block[1] || block[2] || '';
+    const debitRaw  = block[8];
+
+    const debit = parseFloat((debitRaw || '').replace(',', '.').replace(/\s/g, ''));
+    if (!isNaN(debit) && debit < 0 && dateStr) {
+      rows.push({
+        date:        normalizeDate(dateStr),
+        label:       label.trim(),
+        amount:      Math.abs(debit),
+        category_id: guessCategoryId(label),
+      });
+    }
+    i += BLOCK_SIZE;
+  }
+  return rows;
 }
 
 function parseCSVLine(line, sep = ';') {
@@ -106,12 +147,18 @@ function parseCSVLine(line, sep = ';') {
 }
 
 function parseBankCSV(rawText) {
+  const format = detectBankFormat(rawText);
+  if (!format) return { format: null, rows: [] };
+
+  // Format vertical Caisse d'Épargne
+  if (format === 'caisse-epargne-vertical') {
+    return { format, rows: parseCaisseEpargneVertical(rawText) };
+  }
+
   const lines = rawText.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return { format: null, rows: [] };
 
-  const headerLine = lines[0];
-  const format = detectBankFormat(headerLine);
-  const headers = parseCSVLine(headerLine).map(h => h.toLowerCase().replace(/['"]/g, '').trim());
+  const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/['"éèê]/g, c => ({'é':'e','è':'e','ê':'e'}[c]||'')).trim());
 
   const rows = [];
 
@@ -380,7 +427,9 @@ app.post('/api/import/csv', uploadCSV.single('file'), (req, res) => {
 
   const formatLabel = format === 'boursorama'
     ? 'Format Boursorama détecté ✓'
-    : 'Format Caisse d\'Épargne détecté ✓';
+    : format === 'caisse-epargne-vertical'
+      ? 'Format Caisse d\'Épargne (vertical) détecté ✓'
+      : 'Format Caisse d\'Épargne détecté ✓';
 
   res.json({ format, formatLabel, rows, count: rows.length });
 });
