@@ -226,6 +226,7 @@ function initModal() {
   document.getElementById('saveExpenseBtn').addEventListener('click', saveExpense);
   document.getElementById('ocrBtn').addEventListener('click', runOCR);
   document.getElementById('ocrFillBtn').addEventListener('click', fillFromOCR);
+  initCameraControls();
 }
 
 function openModal() {
@@ -242,6 +243,10 @@ function closeModal() {
   document.getElementById('ocrStatus').textContent = '';
   document.getElementById('ocrResult').classList.add('hidden');
   document.getElementById('ocrFillBtn').classList.add('hidden');
+  document.getElementById('receiptPreview').classList.add('hidden');
+  document.getElementById('receiptCamera').value = '';
+  document.getElementById('receiptFile').value = '';
+  activeReceiptFile = null;
   state.ocrData = null;
 }
 
@@ -274,9 +279,38 @@ async function saveExpense() {
 }
 
 // ── OCR ───────────────────────────────────────────────────────
+
+// Fichier actif sélectionné (caméra ou galerie)
+let activeReceiptFile = null;
+
+function initCameraControls() {
+  const btnCamera = document.getElementById('btnOpenCamera');
+  const btnFile   = document.getElementById('btnOpenFile');
+  const inputCam  = document.getElementById('receiptCamera');
+  const inputFile = document.getElementById('receiptFile');
+
+  btnCamera.addEventListener('click', () => inputCam.click());
+  btnFile.addEventListener('click',   () => inputFile.click());
+
+  [inputCam, inputFile].forEach(input => {
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      activeReceiptFile = file;
+      // Aperçu
+      const preview = document.getElementById('receiptPreview');
+      const img     = document.getElementById('receiptPreviewImg');
+      const name    = document.getElementById('receiptFileName');
+      img.src = URL.createObjectURL(file);
+      name.textContent = file.name;
+      preview.classList.remove('hidden');
+    });
+  });
+}
+
 async function runOCR() {
-  const file = document.getElementById('receiptFile').files[0];
-  if (!file) { alert('Sélectionne une photo de ticket.'); return; }
+  const file = activeReceiptFile;
+  if (!file) { alert('Prends une photo ou sélectionne un fichier.'); return; }
 
   const status = document.getElementById('ocrStatus');
   status.textContent = '⏳ Analyse en cours…';

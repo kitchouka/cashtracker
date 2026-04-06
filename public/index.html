@@ -256,8 +256,30 @@
       <!-- OCR sub-tab -->
       <div id="subtab-ocr" class="sub-tab-section hidden p-5">
         <label class="label">Photo du ticket</label>
-        <input id="receiptFile" type="file" accept="image/*" capture="environment"
-          class="block w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-700 file:text-white hover:file:bg-indigo-600 cursor-pointer mb-3" />
+
+        <!-- Deux boutons : caméra ou fichier -->
+        <div class="flex gap-2 mb-3">
+          <button type="button" id="btnOpenCamera"
+            class="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 rounded-xl py-3 text-sm font-medium transition">
+            📸 Prendre une photo
+          </button>
+          <button type="button" id="btnOpenFile"
+            class="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 rounded-xl py-3 text-sm font-medium transition">
+            🖼️ Choisir un fichier
+          </button>
+        </div>
+
+        <!-- Input caméra (mobile) -->
+        <input id="receiptCamera" type="file" accept="image/*" capture="environment" class="hidden" />
+        <!-- Input fichier (desktop + galerie) -->
+        <input id="receiptFile" type="file" accept="image/*" class="hidden" />
+
+        <!-- Aperçu de l'image sélectionnée -->
+        <div id="receiptPreview" class="hidden mb-3 rounded-xl overflow-hidden border border-gray-700">
+          <img id="receiptPreviewImg" src="" alt="Aperçu ticket" class="w-full max-h-48 object-contain bg-black" />
+          <p id="receiptFileName" class="text-xs text-gray-400 text-center py-1"></p>
+        </div>
+
         <button id="ocrBtn"
           class="w-full bg-indigo-700 hover:bg-indigo-600 rounded-xl py-2.5 font-medium transition mb-3">
           🔍 Analyser le ticket
