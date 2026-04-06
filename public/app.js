@@ -243,8 +243,8 @@ function closeModal() {
   document.getElementById('ocrStatus').textContent = '';
   document.getElementById('ocrResult').classList.add('hidden');
   document.getElementById('ocrFillBtn').classList.add('hidden');
+  stopCamera();
   document.getElementById('receiptPreview').classList.add('hidden');
-  document.getElementById('receiptCamera').value = '';
   document.getElementById('receiptFile').value = '';
   activeReceiptFile = null;
   state.ocrData = null;
@@ -282,29 +282,83 @@ async function saveExpense() {
 
 // Fichier actif sélectionné (caméra ou galerie)
 let activeReceiptFile = null;
+let cameraStream = null;
+
+function setReceiptPreview(file, name) {
+  activeReceiptFile = file;
+  const preview = document.getElementById('receiptPreview');
+  const img     = document.getElementById('receiptPreviewImg');
+  const fname   = document.getElementById('receiptFileName');
+  img.src = URL.createObjectURL(file);
+  fname.textContent = name || file.name;
+  preview.classList.remove('hidden');
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  document.getElementById('cameraViewfinder').classList.add('hidden');
+  document.getElementById('cameraStream').srcObject = null;
+}
 
 function initCameraControls() {
-  const btnCamera = document.getElementById('btnOpenCamera');
-  const btnFile   = document.getElementById('btnOpenFile');
-  const inputCam  = document.getElementById('receiptCamera');
-  const inputFile = document.getElementById('receiptFile');
+  const btnCamera  = document.getElementById('btnOpenCamera');
+  const btnFile    = document.getElementById('btnOpenFile');
+  const inputFile  = document.getElementById('receiptFile');
+  const video      = document.getElementById('cameraStream');
+  const viewfinder = document.getElementById('cameraViewfinder');
+  const btnCapture = document.getElementById('btnCapture');
+  const btnClose   = document.getElementById('btnCloseCamera');
+  const canvas     = document.getElementById('captureCanvas');
 
-  btnCamera.addEventListener('click', () => inputCam.click());
-  btnFile.addEventListener('click',   () => inputFile.click());
+  // Bouton "Prendre une photo" → getUserMedia
+  btnCamera.addEventListener('click', async () => {
+    try {
+      // Sur Mac : proposera iPhone (Continuity Camera) si disponible, sinon webcam
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      video.srcObject = cameraStream;
+      viewfinder.classList.remove('hidden');
+      // Cacher l'aperçu précédent
+      document.getElementById('receiptPreview').classList.add('hidden');
+    } catch (err) {
+      // Pas de caméra disponible ou refusé → fallback input file
+      if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        alert('Aucune caméra détectée. Utilise "Choisir un fichier" à la place.');
+      } else if (err.name === 'NotAllowedError') {
+        alert('Accès caméra refusé. Autorise l\'accès dans les réglages de ton navigateur.');
+      } else {
+        alert('Impossible d\'accéder à la caméra : ' + err.message);
+      }
+    }
+  });
 
-  [inputCam, inputFile].forEach(input => {
-    input.addEventListener('change', () => {
-      const file = input.files[0];
-      if (!file) return;
-      activeReceiptFile = file;
-      // Aperçu
-      const preview = document.getElementById('receiptPreview');
-      const img     = document.getElementById('receiptPreviewImg');
-      const name    = document.getElementById('receiptFileName');
-      img.src = URL.createObjectURL(file);
-      name.textContent = file.name;
-      preview.classList.remove('hidden');
-    });
+  // Capturer le frame
+  btnCapture.addEventListener('click', () => {
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      const file = new File([blob], `ticket-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      stopCamera();
+      setReceiptPreview(file, 'Photo prise');
+    }, 'image/jpeg', 0.92);
+  });
+
+  // Fermer le viewfinder
+  btnClose.addEventListener('click', stopCamera);
+
+  // Bouton "Choisir un fichier"
+  btnFile.addEventListener('click', () => inputFile.click());
+  inputFile.addEventListener('change', () => {
+    const file = inputFile.files[0];
+    if (!file) return;
+    stopCamera();
+    setReceiptPreview(file);
   });
 }
 

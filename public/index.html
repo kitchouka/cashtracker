@@ -269,8 +269,25 @@
           </button>
         </div>
 
-        <!-- Input caméra (mobile) -->
-        <input id="receiptCamera" type="file" accept="image/*" capture="environment" class="hidden" />
+        <!-- Viewfinder caméra (getUserMedia) -->
+        <div id="cameraViewfinder" class="hidden mb-3">
+          <div class="relative rounded-xl overflow-hidden border border-gray-700 bg-black">
+            <video id="cameraStream" autoplay playsinline muted class="w-full max-h-64 object-contain"></video>
+            <div class="absolute bottom-0 left-0 right-0 flex justify-center gap-3 p-3 bg-gradient-to-t from-black/70">
+              <button type="button" id="btnCapture"
+                class="bg-white text-gray-900 font-bold px-6 py-2 rounded-full text-sm transition hover:bg-gray-200">
+                📸 Capturer
+              </button>
+              <button type="button" id="btnCloseCamera"
+                class="bg-gray-700 text-white px-4 py-2 rounded-full text-sm transition hover:bg-gray-600">
+                ✕ Annuler
+              </button>
+            </div>
+          </div>
+          <!-- Canvas hidden pour capturer le frame -->
+          <canvas id="captureCanvas" class="hidden"></canvas>
+        </div>
+
         <!-- Input fichier (desktop + galerie) -->
         <input id="receiptFile" type="file" accept="image/*" class="hidden" />
 
