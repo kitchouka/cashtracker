@@ -1,0 +1,35 @@
+/* Base inputs */
+.input {
+  @apply bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100
+         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition;
+}
+.input-sm {
+  @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100
+         focus:outline-none focus:ring-2 focus:ring-indigo-500 transition;
+}
+.label {
+  @apply block text-xs text-gray-400 mb-1 font-medium;
+}
+
+/* Tabs */
+.tab-btn {
+  @apply text-gray-400 border-transparent hover:text-gray-200;
+}
+.tab-btn.active {
+  @apply text-indigo-400 border-indigo-500;
+}
+.sub-tab-btn {
+  @apply text-gray-400 border-transparent hover:text-gray-200;
+}
+.sub-tab-btn.active {
+  @apply text-indigo-400 border-indigo-500;
+}
+
+/* Scrollbar thin */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+
+/* Animations */
+.tab-section { animation: fadeIn 0.15s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }

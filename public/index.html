@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💶 CashTracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+  <script>tailwind.config = { darkMode: 'class' }</script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">💶</span>
+      <span class="text-xl font-bold tracking-tight">CashTracker</span>
+    </div>
+    <div class="relative">
+      <button id="userMenuBtn"
+        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 rounded-lg px-3 py-1.5 text-sm transition">
+        <span id="activeUserDot" class="w-3 h-3 rounded-full bg-indigo-500"></span>
+        <span id="activeUserName">Chargement…</span>
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div id="userMenu" class="hidden absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50">
+        <div id="userMenuList" class="py-1"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- TABS (desktop top, mobile bottom) -->
+  <nav class="hidden md:flex bg-gray-900 border-b border-gray-800 px-4 gap-1">
+    <button data-tab="dashboard" class="tab-btn px-4 py-3 text-sm font-medium transition border-b-2">📊 Dashboard</button>
+    <button data-tab="expenses"  class="tab-btn px-4 py-3 text-sm font-medium transition border-b-2">💸 Dépenses</button>
+    <button data-tab="import"    class="tab-btn px-4 py-3 text-sm font-medium transition border-b-2">📥 Import relevé</button>
+    <button data-tab="settings"  class="tab-btn px-4 py-3 text-sm font-medium transition border-b-2">⚙️ Paramètres</button>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 overflow-auto pb-20 md:pb-4">
+
+    <!-- ══════════════════ DASHBOARD ══════════════════ -->
+    <section id="tab-dashboard" class="tab-section p-4 max-w-3xl mx-auto">
+      <div class="flex items-center justify-between mb-4">
+        <button id="prevMonth" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition">◀</button>
+        <h2 id="monthLabel" class="text-lg font-semibold"></h2>
+        <button id="nextMonth" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition">▶</button>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-3 gap-3 mb-6">
+        <div class="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+          <p class="text-xs text-gray-400 mb-1">Total mois</p>
+          <p id="statTotal" class="text-2xl font-bold text-white">—</p>
+        </div>
+        <div class="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+          <p class="text-xs text-gray-400 mb-1">Personnel</p>
+          <p id="statPersonal" class="text-2xl font-bold text-indigo-400">—</p>
+        </div>
+        <div class="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+          <p class="text-xs text-gray-400 mb-1">Famille</p>
+          <p id="statFamily" class="text-2xl font-bold text-pink-400">—</p>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="bg-gray-900 rounded-2xl p-4 border border-gray-800 mb-6">
+        <p class="text-sm font-medium mb-3 text-gray-300">Répartition par catégorie</p>
+        <canvas id="categoryChart" height="200"></canvas>
+        <p id="chartEmpty" class="text-center text-gray-500 text-sm py-8 hidden">Aucune dépense ce mois</p>
+      </div>
+
+      <!-- Recent expenses -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800">
+        <p class="text-sm font-medium p-4 border-b border-gray-800 text-gray-300">Dernières dépenses</p>
+        <ul id="recentList" class="divide-y divide-gray-800"></ul>
+      </div>
+    </section>
+
+    <!-- ══════════════════ DÉPENSES ══════════════════ -->
+    <section id="tab-expenses" class="tab-section hidden p-4 max-w-3xl mx-auto">
+
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <select id="filterMonth" class="input-sm">
+          <!-- populated by JS -->
+        </select>
+        <select id="filterCategory" class="input-sm">
+          <option value="">Toutes catégories</option>
+        </select>
+        <select id="filterScope" class="input-sm">
+          <option value="">Toutes portées</option>
+          <option value="personal">Personnel</option>
+          <option value="family">Famille</option>
+        </select>
+        <select id="filterUser" class="input-sm">
+          <option value="">Tous</option>
+        </select>
+        <input id="filterSearch" type="search" placeholder="Rechercher…" class="input-sm flex-1 min-w-32" />
+      </div>
+
+      <div class="flex gap-2 mb-4">
+        <button id="addExpenseBtn"
+          class="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl py-2.5 font-medium transition">
+          ➕ Ajouter une dépense
+        </button>
+        <button id="exportCSVBtn"
+          class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 rounded-xl px-4 py-2.5 text-sm transition">
+          📥 CSV
+        </button>
+      </div>
+
+      <ul id="expensesList" class="space-y-2"></ul>
+      <p id="expensesEmpty" class="text-center text-gray-500 py-12 hidden">Aucune dépense pour ces filtres</p>
+    </section>
+
+    <!-- ══════════════════ IMPORT ══════════════════ -->
+    <section id="tab-import" class="tab-section hidden p-4 max-w-3xl mx-auto">
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-5 mb-4">
+        <h3 class="font-semibold mb-2">Import relevé bancaire CSV</h3>
+        <p class="text-sm text-gray-400 mb-1">Formats supportés :</p>
+        <ul class="text-sm text-gray-400 list-disc list-inside mb-4 space-y-1">
+          <li><strong class="text-gray-200">Caisse d'Épargne</strong> — colonnes : Date ; Libellé ; Débit euros ; Crédit euros</li>
+          <li><strong class="text-gray-200">Boursorama</strong> — colonnes : dateOp ; dateVal ; label ; category ; amount (négatif = débit)</li>
+        </ul>
+
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label class="label">Utilisateur</label>
+            <select id="importUserId" class="input w-full"></select>
+          </div>
+          <div>
+            <label class="label">Portée</label>
+            <select id="importScope" class="input w-full">
+              <option value="personal">Personnel</option>
+              <option value="family">Famille</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="label">Fichier CSV</label>
+        <input id="importFile" type="file" accept=".csv,.txt"
+          class="block w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-700 file:text-white hover:file:bg-indigo-600 cursor-pointer mb-4" />
+
+        <button id="analyzeBtn"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 rounded-xl py-2.5 font-medium transition">
+          🔍 Analyser
+        </button>
+      </div>
+
+      <!-- Format detected badge -->
+      <div id="formatBadge" class="hidden mb-4 text-center">
+        <span class="bg-green-900 text-green-300 text-sm font-medium px-4 py-1.5 rounded-full"></span>
+      </div>
+
+      <!-- Preview -->
+      <div id="importPreview" class="hidden bg-gray-900 rounded-2xl border border-gray-800">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <p class="font-medium text-sm"><span id="previewCount">0</span> dépenses détectées</p>
+          <div class="flex gap-2">
+            <button id="selectAllBtn" class="text-xs text-indigo-400 hover:text-indigo-300">Tout sélectionner</button>
+            <button id="deselectAllBtn" class="text-xs text-gray-400 hover:text-gray-300">Tout désélectionner</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-xs text-gray-400 border-b border-gray-800">
+              <tr>
+                <th class="p-3 text-left">✓</th>
+                <th class="p-3 text-left">Date</th>
+                <th class="p-3 text-left">Libellé</th>
+                <th class="p-3 text-right">Montant</th>
+                <th class="p-3 text-left">Catégorie</th>
+              </tr>
+            </thead>
+            <tbody id="previewTableBody" class="divide-y divide-gray-800"></tbody>
+          </table>
+        </div>
+        <div class="p-4 border-t border-gray-800">
+          <button id="confirmImportBtn"
+            class="w-full bg-green-700 hover:bg-green-600 rounded-xl py-2.5 font-medium transition">
+            ✅ Importer <span id="confirmCount">0</span> dépenses
+          </button>
+        </div>
+      </div>
+
+      <div id="importSuccess" class="hidden mt-4 bg-green-900/40 border border-green-700 text-green-300 rounded-xl p-4 text-center font-medium"></div>
+    </section>
+
+    <!-- ══════════════════ PARAMÈTRES ══════════════════ -->
+    <section id="tab-settings" class="tab-section hidden p-4 max-w-xl mx-auto">
+      <h3 class="font-semibold mb-4">Utilisateurs</h3>
+      <ul id="settingsUserList" class="space-y-2 mb-6"></ul>
+
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-5">
+        <h4 class="font-medium mb-4 text-sm text-gray-300">Ajouter un utilisateur</h4>
+        <div class="space-y-3">
+          <div>
+            <label class="label">Nom</label>
+            <input id="newUserName" type="text" placeholder="Marie" class="input w-full" />
+          </div>
+          <div>
+            <label class="label">Email</label>
+            <input id="newUserEmail" type="email" placeholder="marie@famille.local" class="input w-full" />
+          </div>
+          <div>
+            <label class="label">Couleur</label>
+            <input id="newUserColor" type="color" value="#6366f1" class="h-10 w-20 rounded-lg border-0 cursor-pointer bg-transparent" />
+          </div>
+          <button id="addUserBtn"
+            class="w-full bg-indigo-600 hover:bg-indigo-500 rounded-xl py-2.5 font-medium transition">
+            Ajouter
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 flex">
+    <button data-tab="dashboard" class="tab-btn flex-1 flex flex-col items-center py-3 text-xs gap-1">
+      <span class="text-xl">📊</span>Dashboard
+    </button>
+    <button data-tab="expenses" class="tab-btn flex-1 flex flex-col items-center py-3 text-xs gap-1">
+      <span class="text-xl">💸</span>Dépenses
+    </button>
+    <button data-tab="import" class="tab-btn flex-1 flex flex-col items-center py-3 text-xs gap-1">
+      <span class="text-xl">📥</span>Import
+    </button>
+    <button data-tab="settings" class="tab-btn flex-1 flex flex-col items-center py-3 text-xs gap-1">
+      <span class="text-xl">⚙️</span>Paramètres
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════
+       MODAL — Ajouter une dépense
+  ══════════════════════════════════════════════════ -->
+  <div id="addModal" class="hidden fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div class="p-5 border-b border-gray-800 flex items-center justify-between">
+        <h3 class="font-semibold">Nouvelle dépense</h3>
+        <button id="closeModal" class="text-gray-400 hover:text-white text-2xl leading-none">×</button>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div class="flex border-b border-gray-800">
+        <button data-subtab="manual" class="sub-tab-btn flex-1 py-3 text-sm font-medium border-b-2">✏️ Manuel</button>
+        <button data-subtab="ocr"    class="sub-tab-btn flex-1 py-3 text-sm font-medium border-b-2">📷 Photo ticket</button>
+      </div>
+
+      <!-- OCR sub-tab -->
+      <div id="subtab-ocr" class="sub-tab-section hidden p-5">
+        <label class="label">Photo du ticket</label>
+        <input id="receiptFile" type="file" accept="image/*" capture="environment"
+          class="block w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-700 file:text-white hover:file:bg-indigo-600 cursor-pointer mb-3" />
+        <button id="ocrBtn"
+          class="w-full bg-indigo-700 hover:bg-indigo-600 rounded-xl py-2.5 font-medium transition mb-3">
+          🔍 Analyser le ticket
+        </button>
+        <div id="ocrStatus" class="text-sm text-gray-400 text-center"></div>
+        <div id="ocrResult" class="hidden mt-3 bg-gray-800 rounded-xl p-3 text-sm space-y-1"></div>
+        <button id="ocrFillBtn" class="hidden w-full mt-3 bg-green-700 hover:bg-green-600 rounded-xl py-2 text-sm transition">
+          → Pré-remplir le formulaire
+        </button>
+      </div>
+
+      <!-- Manual sub-tab -->
+      <div id="subtab-manual" class="sub-tab-section p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Montant *</label>
+            <div class="flex">
+              <input id="expAmount" type="number" step="0.01" min="0" placeholder="0.00"
+                class="input rounded-r-none flex-1" />
+              <select id="expCurrency" class="input rounded-l-none border-l-0 w-20">
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+                <option value="CHF">CHF</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="label">Date *</label>
+            <input id="expDate" type="date" class="input w-full" />
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Enseigne / Marchand</label>
+          <input id="expMerchant" type="text" placeholder="Carrefour…" class="input w-full" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Catégorie</label>
+            <select id="expCategory" class="input w-full">
+              <option value="">— Choisir —</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Portée</label>
+            <select id="expScope" class="input w-full">
+              <option value="personal">Personnel</option>
+              <option value="family">Famille</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Utilisateur</label>
+          <select id="expUser" class="input w-full"></select>
+        </div>
+
+        <div>
+          <label class="label">Note</label>
+          <input id="expNote" type="text" placeholder="Remarque optionnelle…" class="input w-full" />
+        </div>
+
+        <button id="saveExpenseBtn"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 rounded-xl py-2.5 font-medium transition">
+          💾 Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
